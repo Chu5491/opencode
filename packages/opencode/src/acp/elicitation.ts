@@ -1,9 +1,14 @@
-import type { AgentSideConnection, CreateElicitationRequest, ElicitationPropertySchema } from "@agentclientprotocol/sdk"
+import type {
+  AgentSideConnection,
+  CreateElicitationRequest,
+  ElicitationPropertySchema,
+  PermissionOption,
+} from "@agentclientprotocol/sdk"
 import type { OpencodeClient } from "@opencode-ai/sdk/v2"
 import { Effect } from "effect"
 import type { ACPSession } from "./session"
 
-type Connection = Partial<Pick<AgentSideConnection, "unstable_createElicitation">>
+type Connection = Partial<Pick<AgentSideConnection, "unstable_createElicitation" | "requestPermission">>
 
 type QuestionInfo = {
   readonly question: string
@@ -34,6 +39,10 @@ export class Handler {
     this.supported = true
   }
 
+  private viaPermission(request: QuestionRequest) {
+    return askViaPermission(this.input.connection, request)
+  }
+
   handle(request: QuestionRequest) {
     void this.process(request).catch(() => {})
   }
@@ -49,7 +58,14 @@ export class Handler {
     }
 
     if (!this.supported || !this.input.connection.unstable_createElicitation) {
-      await this.input.sdk.question.reject({ requestID: request.id, directory: session.cwd }).catch(() => {})
+      // Fallback for clients without elicitation support (e.g. JetBrains):
+      // present each question as a permission request whose options are the answer choices.
+      const answers = await this.viaPermission(request)
+      if (!answers) {
+        await this.input.sdk.question.reject({ requestID: request.id, directory: session.cwd }).catch(() => {})
+        return
+      }
+      await this.input.sdk.question.reply({ requestID: request.id, directory: session.cwd, answers }).catch(() => {})
       return
     }
 
@@ -65,6 +81,45 @@ export class Handler {
     const answers: string[][] = buildAnswers(questions, response.content ?? {}).map((a) => [...a])
     await this.input.sdk.question.reply({ requestID: request.id, directory: session.cwd, answers }).catch(() => {})
   }
+}
+
+const SKIP = "__skip__"
+
+// Sequentially ask each question through session/request_permission. Single-choice only.
+async function askViaPermission(
+  connection: Connection,
+  request: QuestionRequest,
+): Promise<string[][] | undefined> {
+  if (!connection.requestPermission) return undefined
+  const answers: string[][] = []
+  for (const [i, q] of request.questions.entries()) {
+    const options: PermissionOption[] = q.options.map((o, idx) => ({
+      optionId: String(idx),
+      kind: "allow_once",
+      name: o.description ? `${o.label} — ${o.description}` : o.label,
+    }))
+    options.push({ optionId: SKIP, kind: "reject_once", name: "Skip question" })
+    const title = q.header && q.header !== q.question ? `${q.header}: ${q.question}` : q.question
+    const result = await connection
+      .requestPermission({
+        sessionId: request.sessionID,
+        toolCall: {
+          toolCallId: `${request.tool?.callID ?? request.id}:q${i}`,
+          title,
+          kind: "other",
+          status: "pending",
+          rawInput: { question: q.question, options: q.options.map((o) => o.label) },
+        },
+        options,
+      })
+      .catch(() => undefined)
+    const outcome = result?.outcome
+    if (!outcome || outcome.outcome !== "selected" || outcome.optionId === SKIP) return undefined
+    const picked = q.options[Number(outcome.optionId)]
+    if (!picked) return undefined
+    answers.push([picked.label])
+  }
+  return answers
 }
 
 function buildRequest(request: QuestionRequest): CreateElicitationRequest {

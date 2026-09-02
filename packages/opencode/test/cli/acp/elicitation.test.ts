@@ -152,7 +152,7 @@ describe("opencode acp elicitation subprocess", () => {
   )
 
   cliIt.live(
-    "auto-rejects question tool when client does not advertise elicitation support",
+    "bridges question tool through request_permission when client does not advertise elicitation support",
     ({ home, llm, opencode }) =>
       Effect.gen(function* () {
         const handle = yield* opencode.acp({
@@ -184,6 +184,14 @@ describe("opencode acp elicitation subprocess", () => {
           return { action: "accept", content: {} }
         })
 
+        // Without elicitation support the question is bridged through request_permission,
+        // with one permission option per answer choice.
+        const permissions: Record<string, unknown>[] = []
+        driver.on("session/request_permission", (params) => {
+          permissions.push(params as Record<string, unknown>)
+          return { outcome: { outcome: "selected", optionId: "0" } }
+        })
+
         yield* llm.tool("question", {
           questions: [
             { question: "Which env?", header: "Env", options: [{ label: "prod", description: "Prod" }] },
@@ -205,6 +213,12 @@ describe("opencode acp elicitation subprocess", () => {
 
         expect(response.stopReason).toBe("end_turn")
         expect(elicitations).toHaveLength(0)
+        expect(permissions).toHaveLength(1)
+        const toolCall = permissions[0]?.toolCall as { title?: string }
+        expect(toolCall.title).toContain("Which env?")
+        const options = permissions[0]?.options as { optionId: string; name: string }[]
+        expect(options.map((o) => o.optionId)).toEqual(["0", "__skip__"])
+        expect(options[0]?.name).toContain("prod")
       }),
     60_000,
   )
