@@ -204,7 +204,9 @@ const layer = Layer.effect(
         }
 
         yield* config.get()
-        const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
+        // fork: "acp" added. upstream hides the question tool on ACP because answers never came back and the
+        // session stalled; src/acp/elicitation.ts now bridges it (elicitation, or request_permission fallback).
+        const questionEnabled = ["app", "cli", "desktop", "acp"].includes(flags.client) || flags.enableQuestionTool
 
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
