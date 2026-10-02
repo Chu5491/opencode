@@ -14,6 +14,8 @@ ACP 관련 패치를 얹고 **직접 빌드해서 쓰는** 용도다. 새 머신
 
 기본 브랜치는 `dev`. upstream 릴리스 태그를 주기적으로 여기에 머지한다.
 
+`v2` 브랜치는 upstream `v2` 의 미러다 (패치 없음, 빌드 안 함). 갱신: `git fetch origin v2 && git push fork origin/v2:v2`
+
 ## 2. 사전 준비
 
 - bun `^1.3.14` (루트 `package.json` 의 `packageManager` 기준. 빌드 스크립트가 버전을 검사한다)
