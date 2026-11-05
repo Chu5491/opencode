@@ -12,13 +12,13 @@ ACP 관련 패치를 얹고 **직접 빌드해서 쓰는** 용도다. 새 머신
 | `871feaada` | `OPENCODE_CLIENT=acp` 일 때도 question 툴 노출. 환경변수 `OPENCODE_ENABLE_QUESTION_TOOL` 불필요 |
 | `e321000d4` | `.husky/pre-push` 가 `packages/opencode` 만 typecheck (전체 typecheck 는 다른 패키지의 환경 의존 오류로 실패) |
 
-기본 브랜치는 `dev`. upstream 릴리스 태그를 주기적으로 여기에 머지한다.
+기본 브랜치는 `dev`. upstream `v1` 브랜치의 릴리스 태그(`v1.x`)를 주기적으로 여기에 머지한다. upstream `dev` 는 이제 v2 이므로 `v2.x` 태그는 머지하지 않는다.
 
-`v2` 브랜치는 upstream `v2` 의 미러다 (패치 없음, 빌드 안 함). 갱신: `git fetch origin v2 && git push fork origin/v2:v2`
+`v2` 브랜치는 upstream `dev`(v2 개발 줄기) 의 미러다 (패치 없음, 빌드 안 함). 갱신: `git fetch origin dev && git push fork origin/dev:v2`
 
 ## 2. 사전 준비
 
-- bun `^1.3.14` (루트 `package.json` 의 `packageManager` 기준. 빌드 스크립트가 버전을 검사한다)
+- bun `^1.4.4` (루트 `package.json` 의 `packageManager` 기준. 빌드 스크립트가 버전을 검사한다)
 - python3 (버전 문자열 추출용, macOS 기본 포함)
 
 ```bash
